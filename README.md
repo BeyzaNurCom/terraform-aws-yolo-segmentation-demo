@@ -1,133 +1,185 @@
-# 🚀 YOLO11 Instance Segmentation Demo (Terraform & AWS Deployment)
+# 🚀 YOLO11 Instance Segmentation on AWS with Terraform
 
-Bu proje, son teknoloji **YOLO11 (yolo11n-seg)** modelini kullanan konteynerize (Docker) bir **örnek bölütleme (Instance Segmentation)** web uygulamasının AWS üzerinde yüksek kullanılabilirliğe (High Availability) sahip ve güvenli bir altyapıda **Terraform (IaC)** ile otomatik olarak canlıya alınmasını sağlar.
+Bu proje, **Ultralytics YOLO11 (yolo11n-seg)** modeli kullanan Docker tabanlı bir **Instance Segmentation** web uygulamasının **Terraform (Infrastructure as Code)** kullanılarak AWS üzerinde otomatik olarak dağıtılmasını göstermektedir.
 
-Bu çalışma, modern bulut mimarisi tasarımı, konteyner teknolojileri, IaC (Infrastructure as Code) pratikleri ve makine öğrenimi modeli entegrasyonunu uçtan uca göstermek amacıyla geliştirilmiştir.
-
----
-
-## 🏗️ Sistem Mimarisi ve Ağ Tasarımı
-
-Uygulamanın AWS üzerindeki altyapısı, kurumsal düzeyde güvenlik ve yedeklilik standartları (Best Practices) göz önünde bulundurularak tasarlanmıştır:
-
-*   **Multi-AZ VPC Mimarisi:** AWS `eu-central-1` (Frankfurt) bölgesinde 2 adet Kullanılabilirlik Alanına (Availability Zone - AZ) yayılmış VPC mimarisi.
-*   **Public ve Private Subnet Ayrımı:** 
-    *   **Public Subnetler:** Dış dünyaya açık olan **Application Load Balancer (ALB)** ve internet çıkışı sağlayan **NAT Gateway**'leri barındırır.
-    *   **Private Subnetler:** Web uygulamasını çalıştıran **EC2** sunucularını barındırır. Bu sayede sunucular internetten doğrudan erişilemez hale getirilerek maksimum güvenlik sağlanır.
-*   **Yüksek Kullanılabilirlikli NAT Gateways:** Her AZ için bağımsız bir NAT Gateway kurulmuştur. Böylece bir AZ'de kesinti yaşansa dahi, diğer AZ'deki EC2 sunucuları güvenli bir şekilde internete erişip paket güncellemelerini, Docker imaj bağımlılıklarını ve YOLO modelini indirmeye devam edebilir.
-*   **Application Load Balancer (ALB):** Public subnetlerde konumlandırılmış olup gelen HTTP trafiğini private subnetlerdeki EC2 sunucularına dengeli bir şekilde dağıtır.
-*   **Stickiness (Oturum Bağlılığı):** ALB üzerinde target group seviyesinde **sticky sessions (cookie-based)** aktif edilmiştir (Detayları aşağıda açıklanmıştır).
-
-### 📊 Mimari Şemalar
-
-#### 1. AWS Cloud Altyapı Mimarisi
-![AWS Cloud Altyapı Mimarisi](media/architecture-diagram.png)
-
-#### 2. AWS VPC Kaynak Haritası (VPC Resource Map)
-![AWS VPC Kaynak Haritası](media/aws-console-vpc-resource-map.png)
+Altyapı; yüksek erişilebilirlik, güvenlik ve tekrar üretilebilirlik hedeflenerek tasarlanmıştır. Uygulama Docker konteyneri içerisinde çalışmakta olup EC2 sunucuları açılış sırasında `user_data.sh` betiği ile otomatik olarak hazırlanmakta ve uygulama herhangi bir manuel kurulum gerektirmeden çalıştırılmaktadır.
 
 ---
 
-## 🛠️ Kritik Mimari Kararlar ve DevOps Çözümleri
+# 🏗️ Architecture
 
-Projenin üretim ortamı (production-ready) standartlarına uygun olmasını sağlayan temel mühendislik kararları şunlardır:
+Altyapı **AWS eu-central-1 (Frankfurt)** bölgesinde iki farklı Availability Zone üzerine kurulmuştur.
 
-### 1. ALB Sticky Sessions (Oturum Yapışkanlığı) Tercihi
-*   **Problem:** Flask web uygulaması, yüklenen görselleri işleyip sonuçları yerel disk üzerindeki `static/uploads` klasörüne kaydetmektedir. 
-*   **Çözüm:** Arkada iki adet EC2 instance çalıştığı için, kullanıcı görseli yüklediğinde istek EC2-A'ya gidebilir ve görsel orada işlenir. Kullanıcı sonucu görmek istediğinde ALB sonraki isteği EC2-B'ye yönlendirirse, EC2-B'de bu dosya bulunamayacağı için uygulama `404 Not Found` hatası verecektir. Bu durumu çözmek için hedef grubunda (target group) **Sticky Sessions (lb_cookie)** aktif edilmiştir. Bu sayede kullanıcı, oturum süresince (3600 saniye) aynı EC2 instance'ına yönlendirilir ve kesintisiz bir deneyim sunulur.
+- 2 Public Subnet
+- 2 Private Subnet
+- 2 NAT Gateway
+- 2 EC2 Instance
+- 1 Application Load Balancer
 
-### 2. EC2 Swap Bellek (Swap Space) Yönetimi (4GB)
-*   **Problem:** Projenin baseline maliyetini düşük tutmak amacıyla **t3.micro (1GB RAM)** instance tipi seçilmiştir. Ancak, PyTorch tabanlı YOLO11 modelinin yüklenmesi, pip bağımlılıklarının kurulması ve Docker imajının sunucuda build edilmesi aşamalarında 1GB RAM yetersiz kalmakta ve sunucu Out-Of-Memory (OOM) hatasıyla kilitlenmektedir.
-*   **Çözüm:** EC2 sunucusu başlatılırken çalışan `user_data.sh` betiğinde dinamik olarak **4GB Swap Alanı** oluşturulup sisteme monte edilmiştir. Bu sayede, t3.micro gibi maliyet etkin bir sunucuda bellek aşımı yaşanmadan Docker build ve model çıkarım (inference) işlemleri sorunsuz bir şekilde tamamlanabilmektedir.
+Application Load Balancer public subnetlerde çalışırken uygulama private subnetlerde bulunan EC2 sunucularında çalışmaktadır.
 
-### 3. En Düşük Yetki İlkesi (Least Privilege Security Groups)
-*   EC2 güvenlik grubu (Security Group), dış dünyadan gelen tüm giriş isteklerine kapatılmıştır. Yalnızca ALB'nin güvenlik grubundan gelen ve uygulamanın çalıştığı **5000** portundaki TCP trafiğine izin verilir. Bu sayede sunucu seviyesinde saldırı yüzeyi minimuma indirilmiştir.
+Private subnetlerde bulunan EC2 instance'ları internete doğrudan açık değildir. İşletim sistemi güncellemeleri, Docker bağımlılıkları ve YOLO11 modeli NAT Gateway üzerinden indirilmektedir.
 
----
+Application Load Balancer gelen HTTP isteklerini iki EC2 instance arasında dağıtır ve Health Check mekanizması sayesinde yalnızca sağlıklı sunuculara trafik yönlendirir.
 
-## 💰 Bulut Maliyet Analizi (Infracost)
+Target Group üzerinde **Sticky Sessions (cookie-based)** etkinleştirilmiştir. Böylece aynı kullanıcı oturum süresince aynı EC2 instance'ına yönlendirilmektedir.
 
-Bulut maliyetlerinin optimize edilmesi ve şeffaflığı amacıyla altyapı **Infracost** ile analiz edilmiştir. Baseline mimari için tahmini aylık çalışma maliyeti yaklaşık **$29.42**'dir (dinamik veri transferi ve LCU kullanım ücretleri hariç):
+### 📊 Architecture Diagram
 
-| Kaynak (Resource) | Detay | Aylık Miktar | Birim | Aylık Tahmini Maliyet |
-| :--- | :--- | :---: | :---: | :---: |
-| **Application Load Balancer** | ALB Çalışma Süresi | 730 | Saat | $19.71 |
-| **Application Load Balancer LCU** | ALB Kapasite Birimi | Kullanıma Bağlı | LCU | ~$5.84 (LCU başına) |
-| **EC2 Instance** | t3.micro Linux/UNIX (On-Demand) | 730 | Saat | $8.76 |
-| **EC2 Root Volume** | General Purpose SSD (gp2 - 8GB) | 8 | GB | $0.95 |
-| **Toplam Baseline Maliyet** | | | | **~$29.42 / Ay** |
+#### AWS Cloud Architecture
 
-> [!NOTE]
-> Detaylı maliyet raporuna [reports/infracost-report.md](reports/infracost-report.md) dosyasından ulaşabilirsiniz.
+![AWS Cloud Architecture](media/architecture-diagram.png)
+
+#### AWS VPC Resource Map
+
+![AWS VPC Resource Map](media/aws-console-vpc-resource-map.png)
 
 ---
 
-## 🖥️ Web Uygulaması ve Kullanıcı Arayüzü
+# ⚙️ Engineering Decisions
 
-Flask, OpenCV ve PyTorch tabanlı web arayüzü modern, temiz ve duyarlı (responsive) bir tasarım diline sahiptir. Kullanıcılar görsel yükleyerek YOLO11 modelinin nesneleri nasıl piksel hassasiyetinde segmentlere ayırdığını canlı olarak görebilirler.
+## Sticky Sessions
 
-#### 1. Ana Sayfa (Görsel Yükleme Paneli)
-![Ana Sayfa](media/screenshot-home.png)
+Flask uygulaması işlenen görüntüleri geçici olarak `static/uploads` dizininde saklamaktadır.
 
-#### 2. Segmentasyon Sonucu ve İndirme Ekranı
-![Segmentasyon Sonucu](media/screenshot-result.png)
+İlk istek EC2-A üzerinde işlendiğinde sonraki isteğin EC2-B'ye yönlendirilmesi durumunda ilgili dosya bulunamayacağından kullanıcı **404 Not Found** hatası alacaktır.
+
+Bu problemi önlemek amacıyla Target Group üzerinde **ALB Cookie Stickiness** etkinleştirilmiştir.
 
 ---
 
-## 🚀 Kurulum ve Canlıya Alma (Deployment Guide)
+## Swap Memory
 
-### 🏠 1. Yerel Ortamda Çalıştırma (Docker)
+Projede maliyeti düşük tutmak amacıyla **t3.micro (1 GB RAM)** instance tipi tercih edilmiştir.
 
-Projeyi yerel makinenizde test etmek için Docker kullanabilirsiniz:
+Docker image oluşturulurken PyTorch ve diğer bağımlılıkların kurulumu sırasında bellek kullanımı artmaktadır.
+
+Bu nedenle `user_data.sh` içerisinde sistem açılışı sırasında otomatik olarak **4 GB Swap Space** oluşturulmaktadır.
+
+Bu sayede Docker build işlemleri ve model yüklenmesi düşük bellekli instance üzerinde sorunsuz şekilde tamamlanabilmektedir.
+
+---
+
+## Security Groups
+
+Security Group kuralları **Least Privilege Principle** dikkate alınarak hazırlanmıştır.
+
+- Application Load Balancer yalnızca HTTP (80) trafiğini kabul eder.
+- EC2 instance'ları internete doğrudan açık değildir.
+- EC2 üzerinde çalışan uygulama yalnızca ALB Security Group üzerinden gelen TCP/5000 trafiğini kabul etmektedir.
+
+Bu yapı sayesinde uygulamaya doğrudan EC2 üzerinden erişim mümkün değildir.
+
+---
+
+# 💰 Cost Estimation
+
+Altyapının tahmini maliyeti **Infracost** kullanılarak analiz edilmiştir.
+
+| Resource | Estimated Monthly Cost |
+|-----------|----------------------:|
+| Application Load Balancer | $19.71 |
+| EC2 Instance (t3.micro) | $8.76 |
+| EBS Volume (8 GB) | $0.95 |
+| **Estimated Total** | **~$29.42 / month** |
+
+> **Note**
+>
+> Veri transferi ve ALB LCU ücretleri kullanım miktarına bağlı olarak değişmektedir.
+
+Detaylı rapor:
+
+`reports/infracost-report.md`
+
+---
+
+# 🖥️ Application
+
+Flask tabanlı web arayüzü üzerinden kullanıcılar bir görüntü yükleyebilir.
+
+YOLO11 modeli yüklenen görüntü üzerinde instance segmentation işlemini gerçekleştirerek sonucu kullanıcıya sunmaktadır.
+
+### Home Page
+
+![Home Page](media/screenshot-home.png)
+
+### Segmentation Result
+
+![Segmentation Result](media/screenshot-result.png)
+
+---
+
+# 🚀 Deployment
+
+## Run Locally
 
 ```bash
-# Projenin app klasörüne gidin
 cd app
 
-# Docker imajını oluşturun
-docker build -t yolo-segmentation-app .
+docker build -t yolo-segmentation .
 
-# Konteyneri çalıştırın
-docker run -d -p 5000:5000 yolo-segmentation-app
+docker run -d -p 5000:5000 yolo-segmentation
 ```
-Uygulamaya tarayıcınızdan `http://localhost:5000` adresinden erişebilirsiniz.
 
-### ☁️ 2. AWS Üzerinde Terraform ile Canlıya Alma
+Uygulama:
 
-#### Gereksinimler:
-*   AWS CLI yüklü ve yetkilendirilmiş (AdministratorAccess veya gerekli IAM izinleri).
-*   Terraform (v1.0.0+) yüklü.
-
-#### Adımlar:
-1.  `terraform` dizinine geçin:
-    ```bash
-    cd terraform
-    ```
-2.  `terraform.tfvars` dosyasını oluşturun veya mevcut olanı düzenleyin. İçeriğine AWS AMI kimliğini ve projenizin GitHub depo URL'sini girin:
-    ```hcl
-    ami_id          = "ami-xxxxxxxxxxxxxxxxx" # Amazon Linux 2023 AMI ID
-    github_repo_url = "https://github.com/kullanici_adiniz/terraform-aws-yolo-segmentation-demo.git"
-    ```
-3.  Terraform projesini başlatın:
-    ```bash
-    terraform init
-    ```
-4.  Oluşturulacak kaynakların planını inceleyin:
-    ```bash
-    terraform plan
-    ```
-5.  Altyapıyı AWS üzerinde oluşturun (onaylamak için `yes` yazın):
-    ```bash
-    terraform apply
-    ```
-6.  İşlem tamamlandığında Terraform size ALB'nin DNS adresini (`alb_dns_name`) çıktı olarak verecektir. Bu adresi tarayıcınıza yapıştırarak uygulamanızı test edebilirsiniz.
+```
+http://localhost:5000
+```
 
 ---
 
-## 🛠️ Kullanılan Teknolojiler
+## Deploy to AWS
 
-*   **IaC (Infrastructure as Code):** Terraform
-*   **Bulut Platformu (Cloud):** Amazon Web Services (AWS) - VPC, EC2, ALB, NAT Gateway, Elastic IP, Security Groups
-*   **Derin Öğrenme / AI:** Ultralytics YOLO11 (yolo11n-seg), PyTorch
-*   **Görüntü İşleme:** OpenCV (opencv-python-headless), Pillow
-*   **Web Framework & Sunucu:** Flask (Python 3.11), Docker Container
+Terraform dizinine geçin.
+
+```bash
+cd terraform
+```
+
+`terraform.tfvars`
+
+```hcl
+ami_id          = "ami-xxxxxxxxxxxxxxxx"
+github_repo_url = "https://github.com/<username>/terraform-aws-yolo-segmentation-demo.git"
+```
+
+Terraform'u başlatın.
+
+```bash
+terraform init
+```
+
+Planı inceleyin.
+
+```bash
+terraform plan
+```
+
+Kaynakları oluşturun.
+
+```bash
+terraform apply
+```
+
+Kurulum tamamlandıktan sonra Terraform çıktısındaki **Application Load Balancer DNS** adresi üzerinden uygulamaya erişebilirsiniz.
+
+Altyapıyı kaldırmak için:
+
+```bash
+terraform destroy
+```
+
+---
+
+# 🛠️ Technologies
+
+- Terraform
+- Amazon Web Services (VPC, EC2, ALB, NAT Gateway, Security Groups, Elastic IP)
+- Docker
+- Flask
+- Python 3.11
+- Ultralytics YOLO11 (yolo11n-seg)
+- PyTorch
+- OpenCV
+- Pillow
