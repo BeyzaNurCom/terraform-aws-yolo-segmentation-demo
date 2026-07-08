@@ -1,36 +1,26 @@
 # 🚀 YOLO11 Instance Segmentation on AWS with Terraform
 
-Bu proje, **Ultralytics YOLO11 (yolo11n-seg)** modeli kullanan Docker tabanlı bir **Instance Segmentation** web uygulamasının **Terraform (Infrastructure as Code)** kullanılarak AWS üzerinde otomatik olarak dağıtılmasını göstermektedir.
+Deploy a Dockerized **YOLO11 Instance Segmentation** web application on AWS using **Terraform**.
 
-Altyapı; yüksek erişilebilirlik, güvenlik ve tekrar üretilebilirlik hedeflenerek tasarlanmıştır. Uygulama Docker konteyneri içerisinde çalışmakta olup EC2 sunucuları açılış sırasında `user_data.sh` betiği ile otomatik olarak hazırlanmakta ve uygulama herhangi bir manuel kurulum gerektirmeden çalıştırılmaktadır.
+The infrastructure follows Infrastructure as Code (IaC) principles and is designed with high availability, private networking, and automated provisioning. EC2 instances are configured automatically using `user_data.sh`, build the Docker image, download the YOLO11 model, and start the application without manual intervention.
 
 ---
 
 # 🏗️ Architecture
 
-Altyapı **AWS eu-central-1 (Frankfurt)** bölgesinde iki farklı Availability Zone üzerine kurulmuştur.
+The infrastructure is deployed across **two Availability Zones** in the **eu-central-1 (Frankfurt)** region.
 
-- 2 Public Subnet
-- 2 Private Subnet
-- 2 NAT Gateway
-- 2 EC2 Instance
-- 1 Application Load Balancer
+- Application Load Balancer distributes traffic across two EC2 instances.
+- EC2 instances are deployed in private subnets.
+- NAT Gateways provide outbound Internet access.
+- Health checks automatically remove unhealthy instances.
+- Sticky Sessions (cookie-based) keep users connected to the same backend instance.
 
-Application Load Balancer public subnetlerde çalışırken uygulama private subnetlerde bulunan EC2 sunucularında çalışmaktadır.
-
-Private subnetlerde bulunan EC2 instance'ları internete doğrudan açık değildir. İşletim sistemi güncellemeleri, Docker bağımlılıkları ve YOLO11 modeli NAT Gateway üzerinden indirilmektedir.
-
-Application Load Balancer gelen HTTP isteklerini iki EC2 instance arasında dağıtır ve Health Check mekanizması sayesinde yalnızca sağlıklı sunuculara trafik yönlendirir.
-
-Target Group üzerinde **Sticky Sessions (cookie-based)** etkinleştirilmiştir. Böylece aynı kullanıcı oturum süresince aynı EC2 instance'ına yönlendirilmektedir.
-
-### 📊 Architecture Diagram
-
-#### AWS Cloud Architecture
+### AWS Cloud Architecture
 
 ![AWS Cloud Architecture](media/architecture-diagram.png)
 
-#### AWS VPC Resource Map
+### AWS VPC Resource Map
 
 ![AWS VPC Resource Map](media/aws-console-vpc-resource-map.png)
 
@@ -38,66 +28,40 @@ Target Group üzerinde **Sticky Sessions (cookie-based)** etkinleştirilmiştir.
 
 # ⚙️ Engineering Decisions
 
-## Sticky Sessions
+### Sticky Sessions
 
-Flask uygulaması işlenen görüntüleri geçici olarak `static/uploads` dizininde saklamaktadır.
+Processed images are temporarily stored in the `static/uploads` directory. Sticky Sessions ensure that requests from the same user are routed to the same EC2 instance, preventing missing file errors.
 
-İlk istek EC2-A üzerinde işlendiğinde sonraki isteğin EC2-B'ye yönlendirilmesi durumunda ilgili dosya bulunamayacağından kullanıcı **404 Not Found** hatası alacaktır.
+### Swap Memory
 
-Bu problemi önlemek amacıyla Target Group üzerinde **ALB Cookie Stickiness** etkinleştirilmiştir.
+A **4 GB swap file** is created automatically during instance initialization, allowing Docker image builds and PyTorch installation to complete successfully on **t3.micro** instances.
 
----
+### Security
 
-## Swap Memory
-
-Projede maliyeti düşük tutmak amacıyla **t3.micro (1 GB RAM)** instance tipi tercih edilmiştir.
-
-Docker image oluşturulurken PyTorch ve diğer bağımlılıkların kurulumu sırasında bellek kullanımı artmaktadır.
-
-Bu nedenle `user_data.sh` içerisinde sistem açılışı sırasında otomatik olarak **4 GB Swap Space** oluşturulmaktadır.
-
-Bu sayede Docker build işlemleri ve model yüklenmesi düşük bellekli instance üzerinde sorunsuz şekilde tamamlanabilmektedir.
-
----
-
-## Security Groups
-
-Security Group kuralları **Least Privilege Principle** dikkate alınarak hazırlanmıştır.
-
-- Application Load Balancer yalnızca HTTP (80) trafiğini kabul eder.
-- EC2 instance'ları internete doğrudan açık değildir.
-- EC2 üzerinde çalışan uygulama yalnızca ALB Security Group üzerinden gelen TCP/5000 trafiğini kabul etmektedir.
-
-Bu yapı sayesinde uygulamaya doğrudan EC2 üzerinden erişim mümkün değildir.
+- EC2 instances are deployed in private subnets.
+- Only the Application Load Balancer can access the application on port **5000**.
+- Internet traffic reaches the application exclusively through the load balancer.
 
 ---
 
 # 💰 Cost Estimation
 
-Altyapının tahmini maliyeti **Infracost** kullanılarak analiz edilmiştir.
+The infrastructure cost was estimated using **Infracost**.
 
 | Resource | Estimated Monthly Cost |
 |-----------|----------------------:|
 | Application Load Balancer | $19.71 |
-| EC2 Instance (t3.micro) | $8.76 |
+| EC2 (t3.micro) | $8.76 |
 | EBS Volume (8 GB) | $0.95 |
 | **Estimated Total** | **~$29.42 / month** |
 
-> **Note**
->
-> Veri transferi ve ALB LCU ücretleri kullanım miktarına bağlı olarak değişmektedir.
-
-Detaylı rapor:
-
-`reports/infracost-report.md`
+> Data transfer and ALB LCU charges depend on actual usage.
 
 ---
 
 # 🖥️ Application
 
-Flask tabanlı web arayüzü üzerinden kullanıcılar bir görüntü yükleyebilir.
-
-YOLO11 modeli yüklenen görüntü üzerinde instance segmentation işlemini gerçekleştirerek sonucu kullanıcıya sunmaktadır.
+The web interface allows users to upload an image and perform **instance segmentation** using the **YOLO11** model.
 
 ### Home Page
 
@@ -121,7 +85,7 @@ docker build -t yolo-segmentation .
 docker run -d -p 5000:5000 yolo-segmentation
 ```
 
-Uygulama:
+Open:
 
 ```
 http://localhost:5000
@@ -131,40 +95,34 @@ http://localhost:5000
 
 ## Deploy to AWS
 
-Terraform dizinine geçin.
-
-```bash
-cd terraform
-```
-
-`terraform.tfvars`
+Create a `terraform.tfvars` file.
 
 ```hcl
 ami_id          = "ami-xxxxxxxxxxxxxxxx"
 github_repo_url = "https://github.com/<username>/terraform-aws-yolo-segmentation-demo.git"
 ```
 
-Terraform'u başlatın.
+Initialize Terraform.
 
 ```bash
 terraform init
 ```
 
-Planı inceleyin.
+Review the execution plan.
 
 ```bash
 terraform plan
 ```
 
-Kaynakları oluşturun.
+Deploy the infrastructure.
 
 ```bash
 terraform apply
 ```
 
-Kurulum tamamlandıktan sonra Terraform çıktısındaki **Application Load Balancer DNS** adresi üzerinden uygulamaya erişebilirsiniz.
+When the deployment is complete, open the **Application Load Balancer DNS** output in your browser.
 
-Altyapıyı kaldırmak için:
+To remove all resources:
 
 ```bash
 terraform destroy
@@ -175,7 +133,7 @@ terraform destroy
 # 🛠️ Technologies
 
 - Terraform
-- Amazon Web Services (VPC, EC2, ALB, NAT Gateway, Security Groups, Elastic IP)
+- Amazon Web Services (VPC, EC2, ALB, NAT Gateway, Security Groups)
 - Docker
 - Flask
 - Python 3.11
