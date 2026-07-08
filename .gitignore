@@ -1,26 +1,38 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+env/
 .env
 
-# Model
+# YOLO Model
 *.pt
+app/models/
 
-# Application files
-app/static/uploads/**
+# Uploaded Files
+app/static/uploads/*
 !app/static/uploads/.gitkeep
 
 # IDE
 .vscode/
 .idea/
-.DS_Store
 
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-terraform.tfvars
-terraform.tfvars.json
-crash.log
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
