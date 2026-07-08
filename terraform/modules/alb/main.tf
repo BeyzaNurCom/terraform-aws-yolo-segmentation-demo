@@ -26,14 +26,21 @@ resource "aws_lb_target_group" "app" {
     unhealthy_threshold = 3
   }
 
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 3600
+    enabled         = true
+  }
+
   tags = {
     Name = "${var.project_name}-tg"
   }
 }
 
 resource "aws_lb_target_group_attachment" "app" {
+  count            = length(var.instance_ids)
   target_group_arn = aws_lb_target_group.app.arn
-  target_id        = var.instance_id
+  target_id        = var.instance_ids[count.index]
   port             = var.app_port
 }
 
