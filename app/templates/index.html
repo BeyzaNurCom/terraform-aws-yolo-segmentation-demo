@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO11 Instance Segmentation Demo</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f3ff;
+            color: #2d2346;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 30px;
+            box-shadow: 0 8px 20px rgba(91, 63, 161, .12);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            color: #4c1d95;
+        }
+
+        p {
+            color: #5b5672;
+            line-height: 1.6;
+        }
+
+        .info {
+            margin-top: 18px;
+            background: #ede9fe;
+            border-left: 5px solid #7c3aed;
+            padding: 16px;
+            border-radius: 10px;
+            font-size: 15px;
+        }
+
+        form {
+            margin-top: 25px;
+        }
+
+        .upload-box {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        input[type=file] {
+            padding: 10px;
+            background: #ede9fe;
+            border: 1px solid #c4b5fd;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        button,
+        .download-btn {
+            background: #6d28d9;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 22px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: .2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        button:hover,
+        .download-btn:hover {
+            background: #5b21b6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        img {
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 12px;
+            border: 2px solid #ddd6fe;
+        }
+
+        h2 {
+            color: #4c1d95;
+            margin-bottom: 10px;
+        }
+
+        .download-btn {
+            margin-top: 20px;
+        }
+
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #7b7695;
+            font-size: 14px;
+        }
+
+        @media(max-width:850px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-box {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="card">
+
+            <h1>YOLO11 Instance Segmentation Demo</h1>
+
+            <p>
+                Upload an image and perform instance segmentation using a pretrained
+                <strong>YOLO11n-seg</strong> model.
+            </p>
+
+            <div class="info">
+                <strong>How to use</strong><br><br>
+
+                1. Select an image from your computer.<br>
+                2. Click <strong>Run Segmentation</strong>.<br>
+                3. View the segmentation result.<br>
+                4. Download the processed image to your local device.
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+
+                <div class="upload-box">
+
+                    <input type="file" name="image" accept=".jpg,.jpeg,.png" required>
+
+                    <button type="submit">
+                        Run Segmentation
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+        {% if uploaded_image and result_image %}
+
+        <div class="grid">
+
+            <div class="card">
+
+                <h2>Uploaded Image</h2>
+
+                <img src="{{ uploaded_image }}" alt="Uploaded image">
+
+            </div>
+
+            <div class="card">
+
+                <h2>Segmentation Result</h2>
+
+                <img src="{{ result_image }}" alt="Segmentation result">
+
+                <a class="download-btn" href="{{ result_image }}" download>
+                    Download Result
+                </a>
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+        <footer>
+            Powered by Flask • Ultralytics YOLO11 • OpenCV
+        </footer>
+
+    </div>
+
+</body>
+
+</html>
