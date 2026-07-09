@@ -1,6 +1,6 @@
 # Infracost Cost Estimation Report
 
-**Generated:** July 8, 2026
+**Generated:** July 9, 2026
 
 This report presents the estimated monthly cost of the AWS infrastructure provisioned using Terraform for the YOLO Segmentation Demo project.
 
@@ -8,30 +8,31 @@ This report presents the estimated monthly cost of the AWS infrastructure provis
 
 | Resource | Detail | Monthly Quantity | Unit | Monthly Cost |
 |----------|--------|-----------------:|------|-------------:|
-| Application Load Balancer | ALB running time | 730 | hours | $19.71 |
-| Application Load Balancer | Load Balancer Capacity Units | Depends on usage | LCU | $5.84 per LCU |
-| EC2 Instance | t3.micro Linux/UNIX (On-Demand) | 730 | hours | $8.76 |
-| EC2 Root Volume | General Purpose SSD (gp2) | 8 | GB | $0.95 |
+| **NAT Gateways (x2)** | NAT gateway running time | 1,460 | hours | $75.92 |
+| **Application Load Balancer** | ALB running time | 730 | hours | $19.71 |
+| **EC2 Instances (x2)** | t3.micro Linux/UNIX (On-Demand) | 1,460 | hours | $17.52 |
+| **EC2 Root Volumes (x2)** | gp3 storage (20 GB each) | 40 | GB | $3.80 |
+| **NAT Gateway Data** | Data processed by NAT gateway | Depends on usage | GB | $0.052 per GB |
+| **Application Load Balancer LCU** | Load Balancer Capacity Units | Depends on usage | LCU | $5.84 per LCU |
 
 ## Overall Estimated Cost
 
 | Category | Cost |
 |----------|-----:|
-| Baseline Monthly Cost | **$29.42** |
-| Usage-based Cost | Depends on application traffic |
-| Estimated Total | **$29.42 + usage charges** |
+| Baseline Monthly Cost | **$116.96** |
+| Usage-based Cost | Depends on application traffic (Data processed, LCU) |
+| **Estimated Total** | **$116.96 + usage charges** |
 
 ## Resource Summary
 
 | Description | Count |
 |-------------|------:|
-| Total AWS Resources | 15 |
-| Costed Resources | 2 |
-| Free Resources | 13 |
+| Total AWS Resources | 28 |
+| Costed Resources | 7 |
+| Free Resources | 21 |
 
 ## Notes
 
 - Generated using **Infracost**.
-- Pricing is based on AWS public pricing available on **July 8, 2026**.
-- Load Balancer Capacity Unit (LCU) charges depend on actual application traffic.
+- Pricing is based on AWS public pricing available on **July 9, 2026**.
 - Estimates may vary depending on AWS region, usage patterns, pricing updates, and Free Tier eligibility.

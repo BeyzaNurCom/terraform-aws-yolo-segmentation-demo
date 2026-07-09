@@ -48,14 +48,15 @@ A **4 GB swap file** is created automatically during instance initialization, al
 
 The infrastructure cost was estimated using **Infracost**.
 
-| Resource | Estimated Monthly Cost |
-|-----------|----------------------:|
-| Application Load Balancer | $19.71 |
-| EC2 (t3.micro) | $8.76 |
-| EBS Volume (8 GB) | $0.95 |
-| **Estimated Total** | **~$29.42 / month** |
+| Resource | Unit Cost / Details | Monthly Qty | Estimated Monthly Cost |
+| :--- | :--- | :---: | :---: |
+| **NAT Gateways (x2)** | NAT gateway running time | 1,460 hrs | $75.92 |
+| **Application Load Balancer** | ALB running time | 730 hrs | $19.71 |
+| **EC2 Instances (x2)** | t3.micro Linux/UNIX (On-Demand) | 1,460 hrs | $17.52 |
+| **EC2 Root Volumes (x2)** | Storage (general purpose SSD, gp3) | 40 GB | $3.80 |
+| **Overall Total** | | | **~$116.96 / month** |
 
-> Data transfer and ALB LCU charges depend on actual usage.
+> **Note:** NAT Gateway data processing ($0.052 per GB) and ALB LCU charges depend on actual application traffic.
 
 ---
 
